@@ -26,4 +26,8 @@ public class FenetreDialogue extends JDialog {
         bAnnuler.setBounds(50,100,100,20);
         myContentPane.add(bAnnuler);
     }
+
+    public void remplir(ActionEvent e){
+        tfNom.setText();
+    }
 }

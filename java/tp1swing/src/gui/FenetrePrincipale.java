@@ -13,6 +13,7 @@ public class FenetrePrincipale extends JFrame {
     private JMenu mFichier;
     private JMenuItem miQuitter, miActions, miRemplir, miVider, miChangerNom, miRemplir2, miVider2;
     JToolBar toolBar;
+    FenetreDialogue fdChangerNom;
 
     public FenetrePrincipale()
     {
@@ -87,12 +88,13 @@ public class FenetrePrincipale extends JFrame {
             }
         });
 
+        fdChangerNom = new FenetreDialogue();
         miChangerNom = new JMenuItem("Modifier nom");
         miActions.add(miChangerNom);
-        miActions.addActionListener(new ActionListener() {
+        miChangerNom.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                remplir(e);
+                fdChangerNom.setVisible(true);
             }
         });
 
