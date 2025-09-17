@@ -88,13 +88,13 @@ public class FenetrePrincipale extends JFrame {
             }
         });
 
-        fdChangerNom = new FenetreDialogue();
+
         miChangerNom = new JMenuItem("Modifier nom");
         miActions.add(miChangerNom);
         miChangerNom.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                fdChangerNom.setVisible(true);
+                modifierNom(e);
             }
         });
 
@@ -134,5 +134,15 @@ public class FenetrePrincipale extends JFrame {
         tfPrenom.setText("");
         tfAge.setText("");
         tfAdresse.setText("");
+    }
+    public void modifierNom(ActionEvent e) {
+        fdChangerNom = new FenetreDialogue(this);
+        fdChangerNom.setVisible(true);
+    }
+    public void setNom(String nom) {
+        tfNom.setText(nom);
+    }
+    public String getNom() {
+        return tfNom.getText();
     }
 }
