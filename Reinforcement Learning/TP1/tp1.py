@@ -4,7 +4,7 @@ import numpy as np
 import random
 
 class RandomAgent:
-    def __init__(self, env: gym.Env, learning_rate=0.1, discount_factor=0.6):
+    def __init__(self, env: gym.Env, learning_rate=0.1, discount_factor=0.2):
         self.env = env
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
@@ -23,8 +23,8 @@ class RandomAgent:
 
 
 env = gym.make("Taxi-v3", render_mode = "ansi")
-print(f"Action Space {env.action_space}")
-print(f"State Space {env.observation_space}")
+print(f"Action Space {env.action_space.n}")
+print(f"State Space {env.observation_space.n}")
 
 env.reset(seed=42)
 
