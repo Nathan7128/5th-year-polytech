@@ -8,10 +8,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from collections import deque
+import random
+import math
 
 import gymnasium as gym
-
-import random
 
 import matplotlib.pyplot as plt
 
@@ -31,6 +31,9 @@ neurons = 128
 learning_rate = 3e-4
 batch_size = 128
 
+eps_start = 0.9
+eps_end = 0.01
+eps_decay = 2500
 discount_factor = 0.99
 tau = 0.005
 
@@ -42,20 +45,14 @@ tau = 0.005
 class DQN(nn.Module):
     def __init__(self, n_observations, n_actions):
         super(DQN, self).__init__()
-        self.layer1 = NoisyLinear(n_observations, neurons)
-        self.layer2 = NoisyLinear(neurons, neurons)
-        self.layer3 = NoisyLinear(neurons, n_actions)
+        self.layer1 = nn.Linear(n_observations, neurons)
+        self.layer2 = nn.Linear(neurons, neurons)
+        self.layer3 = nn.Linear(neurons, n_actions)
 
     def forward(self, x):
-        self.reset_noise()
         x = F.relu(self.layer1(x))
         x = F.relu(self.layer2(x))
         return self.layer3(x)
-
-    def reset_noise(self):
-        self.layer1.reset_noise()
-        self.layer2.reset_noise()
-        self.layer3.reset_noise()
 
     
 # ---------------------------------------------------------------------------------------------------------------------------------------------------
@@ -110,9 +107,16 @@ for episode in range(n_episodes):
     steps = 0
 
     while not done:
-        with torch.no_grad():
-            q_values = current_model(state)
-            action = q_values.argmax(dim=1).unsqueeze(0)
+        sample = random.random()
+
+        eps_threshold = eps_end + (eps_start - eps_end) * math.exp(-1. * steps / eps_decay)
+
+        if sample <= eps_threshold:
+            with torch.no_grad():
+                q_values = current_model(state)
+                action = q_values.argmax(dim=1).unsqueeze(0)
+        else:
+            action = torch.tensor([[env.action_space.sample()]]).to(device)
 
         next_state, reward, terminated, truncated, _ = env.step(action.item())
         done = terminated or truncated
