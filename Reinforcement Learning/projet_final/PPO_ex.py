@@ -15,13 +15,13 @@ import numpy as np
 # --- Hyperparamètres ---
 env_name = "Hopper-v5"
 gamma = 0.99
-lr = 0.001
+lr = 3e-4
 clip_eps = 0.2
-epochs = 1
-steps_per_epoch = 1
-batch_size = 32
+epochs = 400
+steps_per_epoch = 4096
+batch_size = 128
 entropy_coef = 0.01
-hidden_dim = 64
+hidden_dim = 256
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 # --- Environnement ---
@@ -36,8 +36,9 @@ class Policy(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(obs_dim, hidden_dim, device=device),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, act_dim, device=device)
+            nn.Tanh(),
+            nn.Linear(hidden_dim, act_dim, device=device),
+            nn.Tanh()
         )
         self.log_std = nn.Parameter(torch.zeros(act_dim))  
 
@@ -52,8 +53,10 @@ class Value(nn.Module):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(obs_dim, hidden_dim, device=device),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 1, device=device)
+            nn.Tanh(),
+            nn.Linear(hidden_dim, hidden_dim, device=device),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, 1)
         )
 
     def forward(self, x):
@@ -74,11 +77,11 @@ def collect_trajectories():
         mu, std = policy(obs_tensor)
         dist = Normal(mu, std)
         act = dist.sample()
-        logp = dist.log_prob(act)
+        logp = dist.log_prob(act).sum()
         val = value(obs_tensor)
 
         # Scale action to environment
-        act_clamped = nn.Tanh(act)
+        act_clamped = nn.Tanh()(act)
         next_obs, rew, terminated, truncated, _ = env.step(act_clamped.cpu().detach().numpy())
         done = terminated or truncated
 
@@ -108,6 +111,8 @@ def compute_advantages(rews, vals, dones):
     return torch.FloatTensor(advs).to(device), torch.FloatTensor(returns).to(device)
 
 # --- Entraînement ---
+loss_fn = nn.MSELoss()
+
 for epoch in range(epochs):
     obs_list, act_list, rew_list, logp_list, val_list, done_list = collect_trajectories()
     advs, returns = compute_advantages(rew_list, val_list, done_list)
@@ -123,33 +128,33 @@ for epoch in range(epochs):
             end = start + batch_size
             batch_idx = idx[start:end]
 
-            obs_b = obs_tensor[batch_idx]
-            act_b = act_tensor[batch_idx]
-            adv_b = advs[batch_idx]
-            ret_b = returns[batch_idx]
-            old_logp_b = old_logp_tensor[batch_idx]
+            obs_b = obs_tensor[batch_idx].to(device)
+            act_b = act_tensor[batch_idx].to(device)
+            adv_b = advs[batch_idx].to(device)
+            ret_b = returns[batch_idx].to(device)
+            old_logp_b = old_logp_tensor[batch_idx].to(device)
 
             # Policy
             mu, std = policy(obs_b)
             dist = Normal(mu, std)
-            logp = dist.log_prob(dist)
-            entropy = dist.entropy(dist)
-            ratio = ??
-            surr1 = ??
-            surr2 = ??
+            logp = dist.log_prob(act_b).sum(axis=-1)
+            entropy = dist.entropy().sum(axis=-1).mean()
+            ratio = torch.exp(logp - old_logp_b)
+            surr1 = ratio*adv_b
+            surr2 = torch.clamp(ratio, 1 - clip_eps, 1 +  clip_eps)*adv_b
             loss_policy = -torch.min(surr1, surr2).mean() - entropy_coef * entropy
 
             # Value
-            val_pred = ??
-            loss_value = ??
+            val_pred = value(obs_b)
+            loss_value = loss_fn(val_pred.squeeze(), ret_b)
 
             # Backprop
             optimizer_policy.zero_grad()
-            ??.backward()
+            loss_policy.backward()
             optimizer_policy.step()
 
             optimizer_value.zero_grad()
-            ??.backward()
+            loss_value.backward()
             optimizer_value.step()
 
     # --- Stats ---
