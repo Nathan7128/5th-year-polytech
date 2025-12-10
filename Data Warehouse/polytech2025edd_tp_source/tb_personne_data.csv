@@ -1,0 +1,19 @@
+pid,pnom,pprenom,pgenre,page,ptaille,pville
+1,Dupond,Jean,H,30,1.7,Paris
+2,Durand,Jacques,H,20,,Marseille
+3,Dupuis,Pierre,H,,,Lille
+4,Martin,Simon,H,,,
+5,Dupres,Fernand,H,55,,Nice
+6,Dupond,Jeanne,F,28,,Paris
+7,Dupuis,Marie,F,,,
+8,,Marthe,F,45,,
+9,,Veronique,F,35,1.75,L'Hospitalet
+10,Smith,John,H,40,,"New York ""NYC"""
+11,Stuart,Mary,F,37,,Seattle
+12,Mustermann,Erika,F,18,,Berlin
+13,Fritz,Mark,H,28,,Munich
+14,Andersen,Anders,H,20,,Copenhague
+15,Johansen,Ingrid,F,31,,Aalborg
+16,Perez,Maria,F,26,,Madrid
+17,Garcia,Juan,H,55,,Barcelone
+18,Test,,,,,"Pays1, ""ville1"""

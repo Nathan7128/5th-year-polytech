@@ -68,23 +68,20 @@ class MLP(nn.Module):
     def __init__(self, input_dim, output_dim, hidden=HIDDEN, activation=nn.ReLU):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden, device=DEVICE),
-            activation(),
-            nn.Linear(hidden, output_dim, device=DEVICE),
-            activation()
+            ??
         )
         self.net.apply(weight_init)
 
     def forward(self, x):
-        return self.net(x)
+        ??
 
 # Critic (Q network) : prend state et action
 class QNetwork(nn.Module):
     def __init__(self, state_dim, action_dim):
         super().__init__()
-        self.net = MLP(input_dim=state_dim, output_dim=action_dim, hidden=HIDDEN, activation=nn.Tanh)
+        self.net = ??
     def forward(self, s, a):
-        return self.net(s)
+        ??
 
 # Policy : retourne action sampleable et log_prob (avec correction tanh)
 LOG_STD_MIN = -20
