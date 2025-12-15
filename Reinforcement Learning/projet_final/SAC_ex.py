@@ -5,11 +5,15 @@ Created on Wed Dec  3 14:43:09 2025
 @author: julien.hautot
 """
 
+# https://medium.com/data-science/soft-actor-critic-demystified-b8427df61665
+
+
 import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.distributions import Normal
 from collections import deque, namedtuple
 import random
 import math
@@ -82,9 +86,10 @@ class MLP(nn.Module):
 class QNetwork(nn.Module):
     def __init__(self, state_dim, action_dim):
         super().__init__()
-        self.net = MLP(input_dim=state_dim, output_dim=action_dim, hidden=HIDDEN, activation=nn.Tanh)
+        self.net = MLP(input_dim=state_dim+action_dim, output_dim=1, hidden=HIDDEN, activation=nn.Tanh)
     def forward(self, s, a):
-        return self.net(s)
+        x = torch.cat([s, a], 1)
+        return self.net(x)
 
 # Policy : retourne action sampleable et log_prob (avec correction tanh)
 LOG_STD_MIN = -20
@@ -93,23 +98,23 @@ LOG_STD_MAX = 2
 class GaussianPolicy(nn.Module):
     def __init__(self, state_dim, action_dim):
         super().__init__()
-        self.shared = MLP(??)  
+        self.shared = MLP(input_dim=state_dim, output_dim=2*action_dim, hidden=HIDDEN, activation=nn.ReLU)  
         self.action_dim = action_dim
 
     def forward(self, s):
         x = self.shared(s)
-        mu, log_std = ??
-        log_std = torch.tanh(??)
+        mu, log_std = x[:, :self.action_dim], x[:, self.action_dim:]
+        log_std = torch.tanh(log_std)
         # scale log_std to sensible range
         log_std = LOG_STD_MIN + 0.5 * (LOG_STD_MAX - LOG_STD_MIN) * (log_std + 1)
-        std = ??
+        std = log_std.exp()
         return mu, std
 
     def sample(self, s):
         mu, std = self.forward(s)
-        dist = ??
-        z = ??                    
-        action = ??                 
+        dist = Normal(mu, std)
+        z = dist.sample()
+        action = torch.tanh(mu + std*z)
         
         log_prob = dist.log_prob(z) - torch.log(1 - action.pow(2) + 1e-6)
         log_prob = log_prob.sum(dim=-1, keepdim=True)
@@ -128,11 +133,11 @@ class SACAgent:
         self.act_limit = float(env.action_space.high[0])
 
         # networks
-        self.policy = ??
-        self.q1 = ??
-        self.q2 = ??
-        self.q1_target = ??
-        self.q2_target = ??
+        self.policy = GaussianPolicy(state_dim=self.state_dim, action_dim=self.action_dim)
+        self.q1 = QNetwork(state_dim=self.state_dim, action_dim=self.action_dim)
+        self.q2 = QNetwork(state_dim=self.state_dim, action_dim=self.action_dim)
+        self.q1_target = MLP(input_dim=self.state_dim, output_dim=1)
+        self.q2_target = MLP(input_dim=self.state_dim, output_dim=1)
 
         # copy params to targets
         self.q1_target.load_state_dict(self.q1.state_dict())
@@ -146,7 +151,7 @@ class SACAgent:
         # automatic entropy tuning
         if AUTOMATIC_ENTROPY_TUNING:
             # target_entropy = -|A|
-            self.target_entropy = ??
+            self.target_entropy = -self.action_dim
             # log alpha as parameter
             self.log_alpha = torch.tensor(0.0, requires_grad=True, device=DEVICE)
             self.log_alpha = torch.nn.Parameter(self.log_alpha)
@@ -158,7 +163,7 @@ class SACAgent:
         s = torch.FloatTensor(state).unsqueeze(0).to(DEVICE)
         with torch.no_grad():
             if evaluate:
-                _, _, mu = ??
+                _, _, mu = self.policy.sample(s)
                 action = ??
                 logp = None
             else:

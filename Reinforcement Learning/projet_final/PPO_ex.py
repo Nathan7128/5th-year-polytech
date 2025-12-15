@@ -19,7 +19,7 @@ env_name = "Hopper-v5"
 gamma = 0.99
 lr = 3e-4
 clip_eps = 0.2
-epochs = 400
+epochs = 100
 steps_per_epoch = 4096
 batch_size = 128
 entropy_coef = 0.01
@@ -137,8 +137,8 @@ loss_fn = nn.MSELoss()
 
 for epoch in range(epochs):
 
-    # --- Affichage d'un épisode tous les 50 epochs ---
-    if ((epoch + 1)%50 == 0):
+    # --- Affichage d'un épisode tous les 20 epochs ---
+    if ((epoch + 1)%20 == 0):
 
         env_test = gym.make(env_name, render_mode="human")
         done = False
@@ -219,12 +219,13 @@ for epoch in range(epochs):
 # Affichage des courbes d'apprentissages
 
 plt.plot(avg_rew_list, label="Avg Reward")
-plt.plot(losses_policy_list, label="Policy Loss")
-plt.plot(losses_value_list, label="Value Loss")
+# plt.plot(losses_policy_list, label="Policy Loss")
+# plt.plot(losses_value_list, label="Value Loss")
 
 plt.legend()
 plt.xlabel("Epochs")
 plt.ylabel("Values")
 plt.title("Métriques d'entrainement")
+plt.savefig("figures/loss_curves.png")
 
 plt.show()
