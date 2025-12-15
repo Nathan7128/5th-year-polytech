@@ -1,0 +1,26 @@
+store_id,store_country,store_state,store_city,store_name
+0,USA,CA,Alameda,HQ
+1,Mexico,Guerrero,Acapulco,Store 1
+2,USA,WA,Bellingham,Store 2
+3,USA,WA,Bremerton,Store 3
+4,Mexico,Zacatecas,Camacho,Store 4
+5,Mexico,Jalisco,Guadalajara,Store 5
+6,USA,CA,Beverly Hills,Store 6
+7,USA,CA,Los Angeles,Store 7
+8,Mexico,Yucatan,Merida,Store 8
+9,Mexico,DF,Mexico City,Store 9
+10,Mexico,Veracruz,Orizaba,Store 10
+11,USA,OR,Portland,Store 11
+12,Mexico,Zacatecas,Hidalgo,Store 12
+13,USA,OR,Salem,Store 13
+14,USA,CA,San Francisco,Store 14
+15,USA,WA,Seattle,Store 15
+16,USA,WA,Spokane,Store 16
+17,USA,WA,Tacoma,Store 17
+18,Mexico,Zacatecas,Hidalgo,Store 18
+19,Canada,BC,Vancouver,Store 19
+20,Canada,BC,Victoria,Store 20
+21,Mexico,DF,San Andres,Store 21
+22,USA,WA,Walla Walla,Store 22
+23,USA,WA,Yakima,Store 23
+24,USA,CA,San Diego,Store 24
