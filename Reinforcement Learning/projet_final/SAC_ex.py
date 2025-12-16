@@ -24,19 +24,19 @@ import os
 # -------------------------
 ENV_NAME = "Hopper-v5"
 SEED = 42
-MAX_STEPS = ??      
-START_STEPS = ??        
-UPDATE_AFTER = ??       
-UPDATE_EVERY = ??         
-BATCH_SIZE = ??
-GAMMA = ??
-TAU = ??               
-POLICY_LR = ??
-Q_LR = ??
-ALPHA_LR = ??
-HIDDEN = ??
-REPLAY_SIZE = ??
-AUTOMATIC_ENTROPY_TUNING = True   
+MAX_STEPS = 1000000
+START_STEPS = 5000
+UPDATE_AFTER = 1000
+UPDATE_EVERY = 1
+BATCH_SIZE = 256
+GAMMA = 0.99
+TAU = 0.005        
+POLICY_LR = 3e-4
+Q_LR = 1e-3
+ALPHA_LR = 1e-3
+HIDDEN = 256
+REPLAY_SIZE = int(1e6)
+AUTOMATIC_ENTROPY_TUNING = True
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Device:", DEVICE)
@@ -74,8 +74,9 @@ class MLP(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden, device=DEVICE),
             activation(),
-            nn.Linear(hidden, output_dim, device=DEVICE),
-            activation()
+            nn.Linear(hidden, hidden, device=DEVICE),
+            activation(),
+            nn.Linear(hidden, output_dim, device=DEVICE)
         )
         self.net.apply(weight_init)
 
@@ -86,7 +87,7 @@ class MLP(nn.Module):
 class QNetwork(nn.Module):
     def __init__(self, state_dim, action_dim):
         super().__init__()
-        self.net = MLP(input_dim=state_dim+action_dim, output_dim=1, hidden=HIDDEN, activation=nn.Tanh)
+        self.net = MLP(input_dim=state_dim+action_dim, output_dim=1, hidden=HIDDEN, activation=nn.ReLU)
     def forward(self, s, a):
         x = torch.cat([s, a], 1)
         return self.net(x)
@@ -136,8 +137,8 @@ class SACAgent:
         self.policy = GaussianPolicy(state_dim=self.state_dim, action_dim=self.action_dim)
         self.q1 = QNetwork(state_dim=self.state_dim, action_dim=self.action_dim)
         self.q2 = QNetwork(state_dim=self.state_dim, action_dim=self.action_dim)
-        self.q1_target = MLP(input_dim=self.state_dim, output_dim=1)
-        self.q2_target = MLP(input_dim=self.state_dim, output_dim=1)
+        self.q1_target = QNetwork(state_dim=self.state_dim, action_dim=self.action_dim)
+        self.q2_target = QNetwork(state_dim=self.state_dim, action_dim=self.action_dim)
 
         # copy params to targets
         self.q1_target.load_state_dict(self.q1.state_dict())
@@ -154,7 +155,6 @@ class SACAgent:
             self.target_entropy = -self.action_dim
             # log alpha as parameter
             self.log_alpha = torch.tensor(0.0, requires_grad=True, device=DEVICE)
-            self.log_alpha = torch.nn.Parameter(self.log_alpha)
             self.alpha_opt = optim.Adam([self.log_alpha], lr=ALPHA_LR)
         else:
             self.alpha = 0.2
@@ -164,11 +164,11 @@ class SACAgent:
         with torch.no_grad():
             if evaluate:
                 _, _, mu = self.policy.sample(s)
-                action = ??
+                action = mu
                 logp = None
             else:
-                a, logp, _ = ??
-                action = ??
+                a, logp, _ = self.policy.sample(s)
+                action = a
         action = action.cpu().numpy().squeeze(0) * self.act_limit
         return action
 
@@ -179,64 +179,68 @@ class SACAgent:
         a = torch.FloatTensor(np.array(transitions.a)).to(DEVICE)
         r = torch.FloatTensor(np.array(transitions.r)).to(DEVICE).unsqueeze(-1)
         s2 = torch.FloatTensor(np.array(transitions.s2)).to(DEVICE)
-        done = torch.FloatTensor(np.array(transitions.done)).to(DEVICE).unsqueeze(-1)
+        # Ici, 'd' contient maintenant notre masque (0 si mort, 1 sinon)
+        mask = torch.FloatTensor(np.array(transitions.done)).to(DEVICE).unsqueeze(-1)
 
         
         a_scaled = a / self.act_limit
 
         # --- compute target Q value ---
         with torch.no_grad():
-            a2, logp_a2, _ = ??
-            a2_scaled = ??
-            q1_t = ??
-            q2_t = ??
-            q_target_min = ??
+            a2, logp_a2, _ = self.policy.sample(s2)
+            a2_scaled = a2 / self.act_limit
+            q1_t = self.q1_target(s2, a2_scaled)
+            q2_t = self.q2_target(s2, a2_scaled)
+            q_target_min = torch.min(q1_t, q2_t)
             if AUTOMATIC_ENTROPY_TUNING:
-                alpha = ??
+                alpha = torch.exp(self.log_alpha)
             else:
                 alpha = self.alpha
             # target y = r + gamma*(min_q - alpha * logp_a2)
-            y = ??
+            # On multiplie le futur par le masque !
+            # y = r + GAMMA * mask * (Valeur Future)
+            next_q_value = q_target_min - alpha * logp_a2
+            y = r + GAMMA * mask * next_q_value
 
         # --- Q losses ---
-        q1_pred = ??
-        q2_pred = ??
-        q1_loss = ??
-        q2_loss = ??
+        q1_pred = self.q1(s, a_scaled)
+        q2_pred = self.q2(s, a_scaled)
+        q1_loss = nn.MSELoss()(q1_pred, y)
+        q2_loss = nn.MSELoss()(q2_pred, y)
 
         self.q1_opt.zero_grad()
-        ??.backward()
+        q1_loss.backward()
         self.q1_opt.step()
 
         self.q2_opt.zero_grad()
-        ??.backward()
+        q2_loss.backward()
         self.q2_opt.step()
 
         # --- Policy loss ---
-        a_new, logp_new, _ = ??
+        a_new, logp_new, _ = self.policy.sample(s)
         a_new_scaled = a_new * self.act_limit
-        q1_new = ??
-        q2_new = ??
-        q_new_min =??
+        q1_new = self.q1(s, a_new_scaled)
+        q2_new = self.q2(s, a_new_scaled)
+        q_new_min = torch.min(q1_new, q2_new)
 
         if AUTOMATIC_ENTROPY_TUNING:
             alpha = self.log_alpha.exp()
         else:
             alpha = self.alpha
 
-        policy_loss = ??
+        policy_loss = (alpha*logp_new - q_new_min).mean()
 
         self.policy_opt.zero_grad()
-        ??.backward()
+        policy_loss.backward()
         self.policy_opt.step()
 
         # --- entropy (alpha) tuning ---
         if AUTOMATIC_ENTROPY_TUNING:
-            alpha_loss = ??
+            alpha_loss = (-alpha * (logp_new + self.target_entropy)).mean()
             self.alpha_opt.zero_grad()
-            ??.backward()
+            alpha_loss.backward()
             self.alpha_opt.step()
-            alpha = ??
+            alpha = alpha.item()
         else:
             alpha = self.alpha
 
@@ -275,15 +279,20 @@ os.makedirs("sac_checkpoints", exist_ok=True)
 state, _ = env.reset()
 while total_steps < MAX_STEPS:
     if total_steps < START_STEPS:
-        
         action = env.action_space.sample()
     else:
         action = agent.select_action(state, evaluate=False)
 
     next_state, reward, terminated, truncated, _ = env.step(action)
+# --- CORRECTION MASQUE ---
+    # Si 'terminated' (mort) -> mask = 0
+    # Si 'truncated' (temps écoulé) -> mask = 1 (car on veut continuer d'estimer la valeur)
+    # Si rien -> mask = 1
     done = terminated or truncated
+    mask = 1.0 if truncated else float(not done)
 
-    replay.push(state, action, reward, next_state, float(done))
+    # On stocke le 'mask' à la place du 'done' booléen pour simplifier l'update
+    replay.push(state, action, reward, next_state, mask)
 
     state = next_state
     ep_return += reward
