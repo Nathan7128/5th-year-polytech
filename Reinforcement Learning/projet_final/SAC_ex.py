@@ -169,7 +169,7 @@ class SACAgent:
             else:
                 a, logp, _ = self.policy.sample(s)
                 action = a
-        action = action.cpu().numpy().squeeze(0) * self.act_limit
+        action = action.cpu().numpy().squeeze(0)
         return action
 
     def update(self, replay_buffer, batch_size):
@@ -181,19 +181,15 @@ class SACAgent:
         s2 = torch.FloatTensor(np.array(transitions.s2)).to(DEVICE)
         # Ici, 'd' contient maintenant notre masque (0 si mort, 1 sinon)
         mask = torch.FloatTensor(np.array(transitions.done)).to(DEVICE).unsqueeze(-1)
-
         
-        a_scaled = a / self.act_limit
-
         # --- compute target Q value ---
         with torch.no_grad():
             a2, logp_a2, _ = self.policy.sample(s2)
-            a2_scaled = a2 / self.act_limit
-            q1_t = self.q1_target(s2, a2_scaled)
-            q2_t = self.q2_target(s2, a2_scaled)
+            q1_t = self.q1_target(s2, a2)
+            q2_t = self.q2_target(s2, a2)
             q_target_min = torch.min(q1_t, q2_t)
             if AUTOMATIC_ENTROPY_TUNING:
-                alpha = torch.exp(self.log_alpha)
+                alpha = self.log_alpha.exp()
             else:
                 alpha = self.alpha
             # target y = r + gamma*(min_q - alpha * logp_a2)
@@ -203,8 +199,8 @@ class SACAgent:
             y = r + GAMMA * mask * next_q_value
 
         # --- Q losses ---
-        q1_pred = self.q1(s, a_scaled)
-        q2_pred = self.q2(s, a_scaled)
+        q1_pred = self.q1(s, a)
+        q2_pred = self.q2(s, a)
         q1_loss = nn.MSELoss()(q1_pred, y)
         q2_loss = nn.MSELoss()(q2_pred, y)
 
@@ -218,9 +214,8 @@ class SACAgent:
 
         # --- Policy loss ---
         a_new, logp_new, _ = self.policy.sample(s)
-        a_new_scaled = a_new * self.act_limit
-        q1_new = self.q1(s, a_new_scaled)
-        q2_new = self.q2(s, a_new_scaled)
+        q1_new = self.q1(s, a_new)
+        q2_new = self.q2(s, a_new)
         q_new_min = torch.min(q1_new, q2_new)
 
         if AUTOMATIC_ENTROPY_TUNING:
@@ -236,11 +231,11 @@ class SACAgent:
 
         # --- entropy (alpha) tuning ---
         if AUTOMATIC_ENTROPY_TUNING:
-            alpha_loss = (-alpha * (logp_new + self.target_entropy)).mean()
+            alpha_loss = (-self.log_alpha * (logp_new + self.target_entropy).detach()).mean()
             self.alpha_opt.zero_grad()
             alpha_loss.backward()
             self.alpha_opt.step()
-            alpha = alpha.item()
+            alpha = self.log_alpha.exp()
         else:
             alpha = self.alpha
 
